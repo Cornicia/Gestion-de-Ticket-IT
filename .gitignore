@@ -1,0 +1,9 @@
+.idea/
+out/
+target/
+tmp-run/
+tmp-run-2/
+*.iml
+
+data/*.csv
+!data/tickets.example.csv
