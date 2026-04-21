@@ -1,7 +1,9 @@
 package dhi.training.dev.ticket;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -28,6 +30,18 @@ public class TicketManager {
 
     public Set<Ticket> findAllTickets() {
         return new LinkedHashSet<>(repository.getTickets());
+    }
+
+    public List<Ticket> findAllOrderedByPriority() {
+        return repository.getTickets()
+                .stream()
+                .sorted(
+                        Comparator.comparingInt((Ticket ticket) -> ticket.getPriority().ordinal()).reversed()
+                                .thenComparing(Ticket::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                                .thenComparing(Ticket::getOpenedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                                .thenComparing(Ticket::getId)
+                )
+                .toList();
     }
 
     public Optional<Ticket> findTicketById(String id) {
@@ -91,6 +105,14 @@ public class TicketManager {
         Set<Ticket> tickets = new LinkedHashSet<>(repository.getTickets());
         Ticket ticket = findTicketByIdOrThrow(tickets, ticketId);
         ticket.assignTo(technician);
+        repository.saveTickets(tickets);
+        return ticket;
+    }
+
+    public Ticket validateTicketAssignment(String ticketId, String administrator) {
+        Set<Ticket> tickets = new LinkedHashSet<>(repository.getTickets());
+        Ticket ticket = findTicketByIdOrThrow(tickets, ticketId);
+        ticket.validateAssignmentByAdmin(administrator);
         repository.saveTickets(tickets);
         return ticket;
     }

@@ -21,6 +21,9 @@ public class Ticket {
 
     private String assignedTo;
     private LocalDateTime assignedAt;
+    private boolean adminValidated;
+    private String validatedByAdmin;
+    private LocalDateTime validatedAt;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -40,6 +43,46 @@ public class Ticket {
                   LocalDateTime assignedAt,
                   LocalDateTime createdAt,
                   LocalDateTime updatedAt) {
+        this(
+                id,
+                title,
+                description,
+                priority,
+                requester,
+                service,
+                occurredAt,
+                status,
+                openedAt,
+                closedAt,
+                resolvedAt,
+                assignedTo,
+                assignedAt,
+                false,
+                null,
+                null,
+                createdAt,
+                updatedAt
+        );
+    }
+
+    public Ticket(String id,
+                  String title,
+                  String description,
+                  Priority priority,
+                  String requester,
+                  String service,
+                  LocalDateTime occurredAt,
+                  TicketStatus status,
+                  LocalDateTime openedAt,
+                  LocalDateTime closedAt,
+                  LocalDateTime resolvedAt,
+                  String assignedTo,
+                  LocalDateTime assignedAt,
+                  boolean adminValidated,
+                  String validatedByAdmin,
+                  LocalDateTime validatedAt,
+                  LocalDateTime createdAt,
+                  LocalDateTime updatedAt) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -53,6 +96,9 @@ public class Ticket {
         this.resolvedAt = resolvedAt;
         this.assignedTo = assignedTo;
         this.assignedAt = assignedAt;
+        this.adminValidated = adminValidated;
+        this.validatedByAdmin = validatedByAdmin;
+        this.validatedAt = validatedAt;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -86,6 +132,9 @@ public class Ticket {
                 null,
                 null,
                 null,
+                false,
+                null,
+                null,
                 now,
                 now
         );
@@ -93,10 +142,21 @@ public class Ticket {
 
     public void assignTo(String technician) {
         ensureNotClosed();
+        ensureAdminValidationIfRequired();
         validateRequiredText(technician, "technician");
 
         assignedTo = technician.trim();
         assignedAt = LocalDateTime.now();
+        touch();
+    }
+
+    public void validateAssignmentByAdmin(String administrator) {
+        ensureNotClosed();
+        validateRequiredText(administrator, "administrator");
+
+        adminValidated = true;
+        validatedByAdmin = administrator.trim();
+        validatedAt = LocalDateTime.now();
         touch();
     }
 
@@ -180,6 +240,22 @@ public class Ticket {
         return assignedAt;
     }
 
+    public boolean isAdminValidated() {
+        return adminValidated;
+    }
+
+    public String getValidatedByAdmin() {
+        return validatedByAdmin;
+    }
+
+    public LocalDateTime getValidatedAt() {
+        return validatedAt;
+    }
+
+    public boolean requiresAdminValidation() {
+        return priority != Priority.CRITICAL && !adminValidated;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -197,6 +273,14 @@ public class Ticket {
     private void ensureNotResolved() {
         if (status == TicketStatus.RESOLVED) {
             throw new IllegalStateException("The ticket is already resolved");
+        }
+    }
+
+    private void ensureAdminValidationIfRequired() {
+        if (requiresAdminValidation()) {
+            throw new ValidationAdministrateurRequiseException(
+                    "The ticket requires administrator validation before assignment"
+            );
         }
     }
 
@@ -254,6 +338,9 @@ public class Ticket {
                 + ", resolvedAt=" + resolvedAt
                 + ", assignedTo='" + assignedTo + '\''
                 + ", assignedAt=" + assignedAt
+                + ", adminValidated=" + adminValidated
+                + ", validatedByAdmin='" + validatedByAdmin + '\''
+                + ", validatedAt=" + validatedAt
                 + ", createdAt=" + createdAt
                 + ", updatedAt=" + updatedAt
                 + '}';

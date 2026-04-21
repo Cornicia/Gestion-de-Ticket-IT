@@ -29,6 +29,7 @@ class CSVTicketRepositoryTest {
                 "Production",
                 LocalDateTime.now().minusHours(2)
         );
+        ticket.validateAssignmentByAdmin("Claire");
         ticket.assignTo("Bob");
         ticket.markPending();
 
@@ -45,6 +46,8 @@ class CSVTicketRepositoryTest {
         assertEquals(ticket.getPriority(), reloadedTicket.getPriority());
         assertEquals(ticket.getStatus(), reloadedTicket.getStatus());
         assertEquals(ticket.getAssignedTo(), reloadedTicket.getAssignedTo());
+        assertEquals(ticket.isAdminValidated(), reloadedTicket.isAdminValidated());
+        assertEquals(ticket.getValidatedByAdmin(), reloadedTicket.getValidatedByAdmin());
         assertTrue(Files.exists(csvFile));
     }
 }

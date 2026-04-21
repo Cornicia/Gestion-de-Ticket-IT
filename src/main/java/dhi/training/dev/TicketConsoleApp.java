@@ -1,9 +1,12 @@
 package dhi.training.dev;
 
+import dhi.training.dev.ticket.Administrateur;
+import dhi.training.dev.ticket.Employer;
 import dhi.training.dev.ticket.Priority;
 import dhi.training.dev.ticket.Ticket;
 import dhi.training.dev.ticket.TicketManager;
 import dhi.training.dev.ticket.TicketStatus;
+import dhi.training.dev.ticket.Technicien;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -54,11 +57,13 @@ public class TicketConsoleApp {
                     case "4" -> listAllTickets();
                     case "5" -> listTicketsByPriority();
                     case "6" -> listTicketsByStatus();
-                    case "7" -> assignTicket();
-                    case "8" -> markTicketPending();
-                    case "9" -> resolveTicket();
-                    case "10" -> closeTicket();
-                    case "11" -> deleteTicket();
+                    case "7" -> listTicketsInAdminPriorityOrder();
+                    case "8" -> validateTicketAssignment();
+                    case "9" -> assignTicket();
+                    case "10" -> markTicketPending();
+                    case "11" -> resolveTicket();
+                    case "12" -> closeTicket();
+                    case "13" -> deleteTicket();
                     case "0" -> {
                         System.out.println("Au revoir.");
                         running = false;
@@ -83,11 +88,13 @@ public class TicketConsoleApp {
         System.out.println("4. Afficher tous les tickets");
         System.out.println("5. Afficher les tickets par priorite");
         System.out.println("6. Afficher les tickets par statut");
-        System.out.println("7. Assigner un ticket");
-        System.out.println("8. Mettre un ticket en attente");
-        System.out.println("9. Resoudre un ticket");
-        System.out.println("10. Cloturer un ticket");
-        System.out.println("11. Supprimer un ticket");
+        System.out.println("7. Afficher l'ordre de priorite admin");
+        System.out.println("8. Valider un ticket pour assignation");
+        System.out.println("9. Assigner un ticket");
+        System.out.println("10. Mettre un ticket en attente");
+        System.out.println("11. Resoudre un ticket");
+        System.out.println("12. Cloturer un ticket");
+        System.out.println("13. Supprimer un ticket");
         System.out.println("0. Quitter");
     }
 
@@ -102,7 +109,8 @@ public class TicketConsoleApp {
         String service = readRequired("Service : ");
         LocalDateTime occurredAt = readDateTime("Date de l'incident [yyyy-MM-dd HH:mm] : ");
 
-        Ticket ticket = manager.openTicket(title, description, priority, requester, service, occurredAt);
+        Employer employer = new Employer(requester, service, manager);
+        Ticket ticket = employer.submitAlert(title, description, priority, occurredAt);
         System.out.println("Ticket cree avec succes.");
         printTicketDetails(ticket);
     }
@@ -138,31 +146,57 @@ public class TicketConsoleApp {
         printTicketSummaries(manager.findAllByStatus(status));
     }
 
+    private void listTicketsInAdminPriorityOrder() {
+        String administratorName = readRequired("Nom de l'administrateur : ");
+        Administrateur administrateur = new Administrateur(administratorName, manager);
+        printTicketSummariesInCurrentOrder(administrateur.getTicketsOrderedByPriority());
+    }
+
+    private void validateTicketAssignment() {
+        String administratorName = readRequired("Nom de l'administrateur : ");
+        String ticketId = readRequired("ID du ticket : ");
+        Administrateur administrateur = new Administrateur(administratorName, manager);
+        Ticket ticket = administrateur.validateTicketAssignment(ticketId);
+        System.out.println("Ticket valide pour assignation.");
+        printTicketDetails(ticket);
+    }
+
     private void assignTicket() {
         String ticketId = readRequired("ID du ticket : ");
         String technician = readRequired("Nom du technicien : ");
-        Ticket ticket = manager.assignTicket(ticketId, technician);
-        System.out.println("Ticket assigne.");
+        Technicien technicien = new Technicien(technician, manager);
+        Ticket ticket = technicien.assignTicket(ticketId);
+        if (ticket.getPriority() == Priority.CRITICAL && !ticket.isAdminValidated()) {
+            System.out.println("Ticket critique assigne sans validation admin.");
+        } else {
+            System.out.println("Ticket assigne.");
+        }
         printTicketDetails(ticket);
     }
 
     private void markTicketPending() {
+        String technician = readRequired("Nom du technicien : ");
         String ticketId = readRequired("ID du ticket : ");
-        Ticket ticket = manager.markTicketPending(ticketId);
+        Technicien technicien = new Technicien(technician, manager);
+        Ticket ticket = technicien.markTicketPending(ticketId);
         System.out.println("Ticket mis en attente.");
         printTicketDetails(ticket);
     }
 
     private void resolveTicket() {
+        String technician = readRequired("Nom du technicien : ");
         String ticketId = readRequired("ID du ticket : ");
-        Ticket ticket = manager.resolveTicket(ticketId);
+        Technicien technicien = new Technicien(technician, manager);
+        Ticket ticket = technicien.resolveTicket(ticketId);
         System.out.println("Ticket resolu.");
         printTicketDetails(ticket);
     }
 
     private void closeTicket() {
+        String technician = readRequired("Nom du technicien : ");
         String ticketId = readRequired("ID du ticket : ");
-        Ticket ticket = manager.closeTicket(ticketId);
+        Technicien technicien = new Technicien(technician, manager);
+        Ticket ticket = technicien.closeTicket(ticketId);
         System.out.println("Ticket cloture.");
         printTicketDetails(ticket);
     }
@@ -246,6 +280,27 @@ public class TicketConsoleApp {
         }
     }
 
+    private void printTicketSummariesInCurrentOrder(Collection<Ticket> tickets) {
+        if (tickets.isEmpty()) {
+            System.out.println("Aucun ticket trouve.");
+            return;
+        }
+
+        for (Ticket ticket : tickets) {
+            System.out.println(
+                    ticket.getId()
+                            + " | "
+                            + ticket.getPriority()
+                            + " | "
+                            + ticket.getStatus()
+                            + " | "
+                            + formatAdminValidation(ticket)
+                            + " | "
+                            + ticket.getTitle()
+            );
+        }
+    }
+
     private void printTicketDetails(Ticket ticket) {
         System.out.println(SEPARATOR);
         System.out.println("ID : " + ticket.getId());
@@ -257,6 +312,9 @@ public class TicketConsoleApp {
         System.out.println("Date de l'incident : " + formatDateTime(ticket.getOccurredAt()));
         System.out.println("Date d'ouverture : " + formatDateTime(ticket.getOpenedAt()));
         System.out.println("Statut : " + ticket.getStatus());
+        System.out.println("Validation admin : " + formatAdminValidation(ticket));
+        System.out.println("Valide par : " + formatNullable(ticket.getValidatedByAdmin()));
+        System.out.println("Date de validation : " + formatDateTime(ticket.getValidatedAt()));
         System.out.println("Assigne a : " + formatNullable(ticket.getAssignedTo()));
         System.out.println("Date d'assignation : " + formatDateTime(ticket.getAssignedAt()));
         System.out.println("Date de resolution : " + formatDateTime(ticket.getResolvedAt()));
@@ -282,6 +340,18 @@ public class TicketConsoleApp {
 
     private String formatNullable(String value) {
         return value == null || value.isBlank() ? "-" : value;
+    }
+
+    private String formatAdminValidation(Ticket ticket) {
+        if (ticket.isAdminValidated()) {
+            return "VALIDEE";
+        }
+
+        if (ticket.getPriority() == Priority.CRITICAL) {
+            return "NON REQUISE";
+        }
+
+        return "EN ATTENTE";
     }
 
     private String readLine(String prompt) {

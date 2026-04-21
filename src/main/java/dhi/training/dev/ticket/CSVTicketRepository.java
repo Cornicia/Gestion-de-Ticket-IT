@@ -17,6 +17,24 @@ import java.util.Set;
 
 public class CSVTicketRepository implements TicketRepository {
 
+    private static final String LEGACY_HEADER = String.join(
+            ",",
+            "id",
+            "title",
+            "description",
+            "priority",
+            "requester",
+            "service",
+            "occurredAt",
+            "openedAt",
+            "status",
+            "closedAt",
+            "resolvedAt",
+            "assignedTo",
+            "assignedAt",
+            "createdAt",
+            "updatedAt"
+    );
     private static final String HEADER = String.join(
             ",",
             "id",
@@ -32,6 +50,9 @@ public class CSVTicketRepository implements TicketRepository {
             "resolvedAt",
             "assignedTo",
             "assignedAt",
+            "adminValidated",
+            "validatedByAdmin",
+            "validatedAt",
             "createdAt",
             "updatedAt"
     );
@@ -62,7 +83,7 @@ public class CSVTicketRepository implements TicketRepository {
                     continue;
                 }
 
-                if (isFirstLine && HEADER.equals(line)) {
+                if (isFirstLine && isSupportedHeader(line)) {
                     isFirstLine = false;
                     continue;
                 }
@@ -79,11 +100,17 @@ public class CSVTicketRepository implements TicketRepository {
 
     private static Ticket parseTicket(String line) {
         List<String> values = parseCsvLine(line);
-        if (values.size() != 15) {
+        if (values.size() != 15 && values.size() != 18) {
             throw new IllegalArgumentException("Invalid CSV line: " + line);
         }
 
         String[] strings = values.toArray(new String[0]);
+
+        boolean adminValidated = values.size() == 18 && Boolean.parseBoolean(strings[13]);
+        String validatedByAdmin = values.size() == 18 ? parseNullableString(strings[14]) : null;
+        LocalDateTime validatedAt = values.size() == 18 ? parseDateTime(strings, 15) : null;
+        int createdAtPosition = values.size() == 18 ? 16 : 13;
+        int updatedAtPosition = values.size() == 18 ? 17 : 14;
 
         return new Ticket(
                 strings[0],
@@ -99,9 +126,16 @@ public class CSVTicketRepository implements TicketRepository {
                 parseDateTime(strings, 10),
                 parseNullableString(strings[11]),
                 parseDateTime(strings, 12),
-                parseDateTime(strings, 13),
-                parseDateTime(strings, 14)
+                adminValidated,
+                validatedByAdmin,
+                validatedAt,
+                parseDateTime(strings, createdAtPosition),
+                parseDateTime(strings, updatedAtPosition)
         );
+    }
+
+    private static boolean isSupportedHeader(String line) {
+        return HEADER.equals(line) || LEGACY_HEADER.equals(line);
     }
 
     private static LocalDateTime parseDateTime(String[] strings, int position) {
@@ -163,7 +197,7 @@ public class CSVTicketRepository implements TicketRepository {
     }
 
     private String writeTicket(Ticket ticket) {
-        String[] strings = new String[15];
+        String[] strings = new String[18];
 
         strings[0] = escapeCsv(ticket.getId());
         strings[1] = escapeCsv(ticket.getTitle());
@@ -178,8 +212,11 @@ public class CSVTicketRepository implements TicketRepository {
         strings[10] = escapeCsv(ticket.getResolvedAt() == null ? "" : ticket.getResolvedAt().toString());
         strings[11] = escapeCsv(ticket.getAssignedTo() == null ? "" : ticket.getAssignedTo());
         strings[12] = escapeCsv(ticket.getAssignedAt() == null ? "" : ticket.getAssignedAt().toString());
-        strings[13] = escapeCsv(ticket.getCreatedAt().toString());
-        strings[14] = escapeCsv(ticket.getUpdatedAt().toString());
+        strings[13] = escapeCsv(Boolean.toString(ticket.isAdminValidated()));
+        strings[14] = escapeCsv(ticket.getValidatedByAdmin() == null ? "" : ticket.getValidatedByAdmin());
+        strings[15] = escapeCsv(ticket.getValidatedAt() == null ? "" : ticket.getValidatedAt().toString());
+        strings[16] = escapeCsv(ticket.getCreatedAt().toString());
+        strings[17] = escapeCsv(ticket.getUpdatedAt().toString());
 
         return String.join(",", strings);
     }
